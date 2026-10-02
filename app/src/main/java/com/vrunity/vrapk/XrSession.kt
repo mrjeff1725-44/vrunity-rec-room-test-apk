@@ -42,15 +42,20 @@ class XrSession(private val activity: Activity) {
     // 0 = there is no VR runtime here and the screen mode should be used instead.
     fun run(): Int {
         if (!Xr.start(activity)) return 0
-        val game = Game(activity)
-        game.setup()
-        playerX = game.startX
-        playerZ = game.startZ
-        playerYaw = game.startYaw
-        lastNs = System.nanoTime()
         var frames = 0
         try {
+            val game = Game(activity)
+            game.setup()
+            playerX = game.startX
+            playerZ = game.startZ
+            playerYaw = game.startYaw
+            lastNs = System.nanoTime()
             frames = loop(game)
+        } catch (t: Throwable) {
+            // Anything that fails while the headset is being opened — the scene, a
+            // shader, a pose — leaves the game on the screen view rather than hanging
+            // on a frame that will never be drawn.
+            frames = 0
         } finally {
             Xr.stop()
         }

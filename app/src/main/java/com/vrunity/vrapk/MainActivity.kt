@@ -10,27 +10,32 @@ import android.view.WindowManager
 // own VR session; on a device without one it falls back to screen mode.
 class MainActivity : Activity() {
     private var surface: VrSurfaceView? = null
-    private var screenMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContentView(View(this))
-        // The headset's VR runtime is tried first, off the main thread — it does not
-        // answer instantly.
-        val thread = Thread {
-            // 2 = the headset ran the game, anything else falls back to the screen.
-            val result = XrSession(this).run()
-            runOnUiThread {
-                if (result == 2) finish() else startScreenMode()
+        // The scene is put on screen straight away, before anything else is tried, so
+        // the app draws from its very first moment instead of waiting on a screen that
+        // may never come. Opening the headset's VR session happens alongside this and
+        // takes the app over when it succeeds.
+        startScreenMode()
+        val attempt = Thread {
+            // 2 = the headset ran the game, anything else leaves the scene on screen.
+            // Nothing this thread can do is allowed to end in a blank window, so every
+            // failure — including one this thread never sees coming — is caught here.
+            var tookVr = false
+            try {
+                tookVr = XrSession(this).run() == 2
+            } catch (t: Throwable) {
+                tookVr = false
             }
+            if (tookVr) runOnUiThread { finish() }
         }
-        thread.start()
+        attempt.start()
     }
 
     private fun startScreenMode() {
-        if (screenMode) return
-        screenMode = true
+        if (surface != null) return
         val s = VrSurfaceView(this)
         surface = s
         setContentView(s)
